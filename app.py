@@ -1,101 +1,78 @@
-import pyodbc
+import mysql.connector
 from flask import Flask, jsonify, redirect, render_template, request, url_for
 
 app = Flask(__name__)
 
-# Connect to the database
-conn = pyodbc.connect(
-    "DRIVER={SQL Server};SERVER=PF2WGETC\\SQLEXPRESS;DATABASE=CellApp;Trusted_Connection=yes;"
+# 🔌 Connect to MySQL Workbench
+conn = mysql.connector.connect(
+    host="localhost",
+    user="root",  # CHANGE THIS
+    password="!St0107195090082",  # CHANGE THIS
+    database="church_db",
 )
-
-# Static leaders for dropdown based on zone selection
-zone_leaders = {
-    "Korle Bu": ["Michelle Peters", "Micheline Peters", "Destiny Manuel"],
-    "Extension": ["Jaidee Ockhuis", "Venus Schroeder"],
-}
+cursor = conn.cursor(dictionary=True)
 
 
+# 🏠 Home Page (Submission Form)
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+
+# 🔽 Fetch Zone List for Dropdown
+@app.route("/get_zones")
+def get_zones():
+    cursor.execute("SELECT ZoneName FROM Zones")
+    zones = [row["ZoneName"] for row in cursor.fetchall()]
+    return jsonify(zones)
+
+
+# 🔽 Fetch Leaders for Selected Zone
 @app.route("/get_leaders/<zone>")
 def get_leaders(zone):
-    cursor = conn.cursor()
-    cursor.execute("SELECT LeaderName FROM Leaders WHERE Zone = ?", (zone,))
-    leaders = [row.LeaderName for row in cursor.fetchall()]
+    cursor.execute("SELECT LeaderName FROM Leaders WHERE ZoneName = %s", (zone,))
+    leaders = [row["LeaderName"] for row in cursor.fetchall()]
     return jsonify(leaders)
 
 
-@app.route("/")
-def index():
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM Totals")
-    totals = cursor.fetchall()
-
-    cursor.execute("SELECT DISTINCT Zone FROM Leaders")
-    zones = [row.Zone for row in cursor.fetchall()]
-
-    return render_template("index.html", totals=totals, zones=zones)
-
-
-@app.route("/submit", methods=["POST"])
-def submit():
-    # Get form data
-    zone = request.form["zone"]
-    grand_total = request.form["grand_total"]
-    visitors = request.form["visitors"]
-    decisions = request.form["decisions"]
-    offering = request.form["offering"]
-    leader_name = request.form["leader_name"]
-    submission_date = request.form["submission_date"]  # Capture the submission date
-
-    # Insert data into the Totals table
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        INSERT INTO Totals (Zone, GrandTotal, Visitors, Decisions, Offering, SubmissionDate, LeaderName)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """,
-        (
-            zone,
-            grand_total,
-            visitors,
-            decisions,
-            offering,
-            submission_date,
-            leader_name,
-        ),
+# ✅ Submit Totals
+@app.route("/submit_totals", methods=["POST"])
+def submit_totals():
+    data = request.form
+    query = """
+        INSERT INTO Totals (ServiceDay, LeaderName, ZoneName, GrandTotal, Visitors, Decisions, Offering, SubmissionDate)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+    """
+    values = (
+        data["service_day"],
+        data["leader_name"],
+        data["zone"],
+        data["grand_total"],
+        data["visitors"],
+        data["decisions"],
+        data["offering"],
+        data["submission_date"],
     )
+    cursor.execute(query, values)
     conn.commit()
     return redirect(url_for("index"))
 
 
-@app.route("/update", methods=["POST"])
-def update():
-    # Get form data for update
-    id = request.form["id"]
-    grand_total = request.form["grand_total"]
-    visitors = request.form["visitors"]
-    decisions = request.form["decisions"]
-    offering = request.form["offering"]
-    submission_date = request.form["submission_date"]  # Capture the submission date
-
-    # Update Totals table based on ID
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        UPDATE Totals
-        SET GrandTotal = ?, Visitors = ?, Decisions = ?, Offering = ?, SubmissionDate = ?
-        WHERE ID = ?
-    """,
-        (
-            grand_total,
-            visitors,
-            decisions,
-            offering,
-            submission_date,
-            id,
-        ),  # Pass the submission date for update
-    )
-    conn.commit()
-    return redirect(url_for("index"))
+# 📊 View Totals for a Specific Zone
+@app.route("/zone_totals", methods=["GET", "POST"])
+def zone_totals():
+    if request.method == "POST":
+        zone = request.form["zone"]
+        cursor.execute(
+            "SELECT * FROM Totals WHERE ZoneName = %s ORDER BY SubmissionDate DESC",
+            (zone,),
+        )
+        totals = cursor.fetchall()
+        return render_template("zone_totals.html", zone=zone, totals=totals)
+    else:
+        cursor.execute("SELECT ZoneName FROM Zones")
+        zones = [row["ZoneName"] for row in cursor.fetchall()]
+        return render_template("zone_totals.html", zones=zones, totals=None)
 
 
 if __name__ == "__main__":

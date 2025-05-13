@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Zone Totals</title>
+  </head>
+  <body>
+    <h2>View Zone Totals</h2>
+
+    <form method="POST" action="/zone_totals">
+      <label>Select Zone:</label>
+      <select name="zone" required>
+        {% for zone in zones %}
+        <option value="{{ zone }}">{{ zone }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit">View</button>
+    </form>
+
+    {% if totals %}
+    <h3>Totals for Zone: {{ zone }}</h3>
+    <table border="1">
+      <tr>
+        <th>Date</th>
+        <th>Leader</th>
+        <th>Service Day</th>
+        <th>Grand Total</th>
+        <th>Visitors</th>
+        <th>Decisions</th>
+        <th>Offering (R)</th>
+      </tr>
+      {% for row in totals %}
+      <tr>
+        <td>{{ row.SubmissionDate }}</td>
+        <td>{{ row.LeaderName }}</td>
+        <td>{{ row.ServiceDay }}</td>
+        <td>{{ row.GrandTotal }}</td>
+        <td>{{ row.Visitors }}</td>
+        <td>{{ row.Decisions }}</td>
+        <td>{{ row.Offering }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+  </body>
+</html>
